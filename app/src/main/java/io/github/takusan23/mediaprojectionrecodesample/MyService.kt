@@ -1,30 +1,21 @@
 package io.github.takusan23.mediaprojectionrecodesample
 
-import android.annotation.SuppressLint
-import android.annotation.TargetApi
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.Service
 import android.content.Context
 import android.content.Intent
-import android.hardware.display.DisplayManager
-import android.media.AudioFormat
-import android.media.AudioRecord
-import android.media.MediaRecorder
+import android.media.*
 import android.media.projection.MediaProjection
 import android.media.projection.MediaProjectionManager
 import android.os.Build
+import android.os.Handler
+import android.os.HandlerThread
 import android.os.IBinder
+import android.util.Log
+import androidx.annotation.RequiresApi
 import androidx.core.app.NotificationCompat
 import java.io.File
-import java.lang.RuntimeException
-import androidx.core.content.ContextCompat.getSystemService
-import android.icu.lang.UCharacter.GraphemeClusterBreak.T
-import android.media.AudioPlaybackCaptureConfiguration
-import androidx.core.content.ContextCompat.getSystemService
-import android.icu.lang.UCharacter.GraphemeClusterBreak.T
-
-
 
 
 class MyService : Service() {
@@ -74,15 +65,10 @@ class MyService : Service() {
             startForeground(1, notification)
 
             //録画
-            startREC()
-
+            if (Build.VERSION.SDK_INT >= 29) startREC()
         }
 
         return START_STICKY
-    }
-
-    override fun onCreate() {
-        super.onCreate()
     }
 
     override fun onDestroy() {
@@ -98,8 +84,7 @@ class MyService : Service() {
     }
 
 
-    @SuppressLint("NewApi")
-    @TargetApi(Build.VERSION_CODES.O)
+    @RequiresApi(29)
     fun startREC() {
 
         projectionManager =
@@ -109,73 +94,74 @@ class MyService : Service() {
         projection =
             projectionManager.getMediaProjection(code, data)
 
+//        mMediaRecorder = MediaRecorder()
+//        mMediaRecorder.setAudioSource(MediaRecorder.AudioSource.MIC)
+//        mMediaRecorder.setVideoSource(MediaRecorder.VideoSource.SURFACE)
+//        mMediaRecorder.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
+//        mMediaRecorder.setVideoEncoder(MediaRecorder.VideoEncoder.H264)
+//        mMediaRecorder.setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
+//        mMediaRecorder.setVideoEncodingBitRate(1024 * 1000)
+//        mMediaRecorder.setVideoFrameRate(30)
+//        mMediaRecorder.setVideoSize(1400, 2800)
+//        mMediaRecorder.setAudioSamplingRate(32000)
+//        mMediaRecorder.setOutputFile(getFilePath())
+//        mMediaRecorder.prepare()
+//
+//        val virtualDisplay = projection.createVirtualDisplay(
+//            "recode",
+//            width,
+//            height,
+//            dpi,
+//            DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
+//            mMediaRecorder.surface,
+//            null,
+//            null
+//        )
+//
+//        //開始
+//        mMediaRecorder.start()
 
-        mMediaRecorder = MediaRecorder()
-        mMediaRecorder.setAudioSource(MediaRecorder.AudioSource.MIC)
-        mMediaRecorder.setVideoSource(MediaRecorder.VideoSource.SURFACE)
-        mMediaRecorder.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
-        mMediaRecorder.setVideoEncoder(MediaRecorder.VideoEncoder.H264)
-        mMediaRecorder.setAudioEncoder(MediaRecorder.AudioEncoder.AMR_NB)
-        mMediaRecorder.setVideoEncodingBitRate(1024 * 1000)
-        mMediaRecorder.setVideoFrameRate(30)
-        mMediaRecorder.setVideoSize(1400, 2800)
-        mMediaRecorder.setAudioSamplingRate(44100)
-        mMediaRecorder.setOutputFile(getFilePath())
-        mMediaRecorder.prepare()
-
-        val virtualDisplay = projection.createVirtualDisplay(
-            "recode",
-            width,
-            height,
-            dpi,
-            DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
-            mMediaRecorder.surface,
-            null,
-            null
-        )
-
-        //開始
-       // mMediaRecorder.start()
-
-        //音声録音てすと
-        val samplingRate = 44100
-        val oneFrameDataCount = samplingRate / 10
-        val oneFrameSizeInByte = oneFrameDataCount * 2
-
-        //内部音声をとる
-        val audioPlaybackCaptureConfiguration = AudioPlaybackCaptureConfiguration.Builder(projection).build()
-
-        val recorder = AudioRecord.Builder()
-            .setAudioPlaybackCaptureConfig(audioPlaybackCaptureConfiguration)
-            .build()
-
-        recorder.startRecording()
-
-
-
-
-/*
         val audioPlaybackCaptureConfiguration =
-            AudioPlaybackCaptureConfiguration.Builder(projection).build()
+            AudioPlaybackCaptureConfiguration.Builder(projection)
+                .addMatchingUsage(AudioAttributes.USAGE_MEDIA)
+                .addMatchingUsage(AudioAttributes.USAGE_GAME)
+                .addMatchingUsage(AudioAttributes.USAGE_UNKNOWN)
+                .build()
 
-        val recorder = AudioRecord.Builder()
-            .setAudioSource(MediaRecorder.AudioSource.VOICE_COMMUNICATION)
-            .setAudioPlaybackCaptureConfig(audioPlaybackCaptureConfiguration)
-            .setAudioFormat(
-                AudioFormat.Builder()
-                    .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
-                    .setSampleRate(32000)
-                    .setChannelMask(AudioFormat.CHANNEL_IN_MONO)
-                    .build()
-            )
-            .setBufferSizeInBytes(2)
-            .build()
+        val sampleRate = 48000
+        val channelConfig = AudioFormat.CHANNEL_IN_MONO
+        val pcm16 = AudioFormat.ENCODING_PCM_16BIT
 
+        val pcmBufSize = AudioRecord.getMinBufferSize(
+            sampleRate,
+            channelConfig,
+            pcm16
+        ) * 5
 
-        recorder.startRecording()
-*/
+        val fullAudioRecorder = AudioRecord.Builder()
+                .setAudioPlaybackCaptureConfig(audioPlaybackCaptureConfiguration)
+                .setAudioFormat(
+                    AudioFormat.Builder()
+                        .setSampleRate(sampleRate)
+                        .setEncoding(pcm16)
+                        .setChannelMask(channelConfig)
+                        .build()
+                )
+                .setBufferSizeInBytes(pcmBufSize)
+                .build()
 
+        fullAudioRecorder.startRecording()
 
+        HandlerThread("ff2").let {
+            it.start()
+            Handler(it.looper).post {
+                while (true) {
+                    val buffer = ShortArray(pcmBufSize / 2)
+                    val got = fullAudioRecorder.read(buffer, 0, buffer.size)
+                    Log.i("b-BestRec", "${buffer[0]} ${buffer[1]}")
+                }
+            }
+        }
     }
 
     fun getFilePath(): File {

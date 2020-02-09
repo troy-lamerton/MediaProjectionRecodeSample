@@ -4,21 +4,13 @@ import android.annotation.TargetApi
 import android.app.Activity
 import android.content.Context
 import android.content.Intent
-import android.hardware.display.DisplayManager
-import android.media.CamcorderProfile
-import android.media.MediaRecorder
-import android.media.projection.MediaProjection
 import android.media.projection.MediaProjectionManager
-import androidx.appcompat.app.AppCompatActivity
-import android.os.Bundle
-import kotlinx.android.synthetic.main.activity_main.*
-import android.util.DisplayMetrics
-import androidx.core.app.ComponentActivity
-import androidx.core.app.ComponentActivity.ExtraData
-import androidx.core.content.ContextCompat.getSystemService
-import android.icu.lang.UCharacter.GraphemeClusterBreak.T
 import android.os.Build
-import android.widget.Toast
+import android.os.Bundle
+import android.webkit.WebChromeClient
+import android.webkit.WebViewClient
+import androidx.appcompat.app.AppCompatActivity
+import kotlinx.android.synthetic.main.activity_main.*
 import java.io.File
 
 
@@ -52,6 +44,16 @@ class MainActivity : AppCompatActivity() {
 
         }
 
+        webView.settings.javaScriptEnabled = true
+        webView.webChromeClient = WebChromeClient()
+        webView.webViewClient = WebViewClient()
+        webView.settings.javaScriptCanOpenWindowsAutomatically = true
+//        webView.settings.pluginState = WebSettings.PluginState.ON
+        webView.settings.mediaPlaybackRequiresUserGesture = false
+
+        val url = "https://www.youtube.com/watch?v=lcfcG31AgyE"
+        webView.loadUrl(url)
+
     }
 
     @TargetApi(Build.VERSION_CODES.O)
@@ -64,7 +66,7 @@ class MainActivity : AppCompatActivity() {
                 intent.putExtra("code", resultCode)
                 intent.putExtra("data", data)
 
-                val metrics = getResources().getDisplayMetrics();
+                val metrics = resources.displayMetrics
 
                 intent.putExtra("height", metrics.heightPixels)
                 intent.putExtra("width", metrics.widthPixels)
